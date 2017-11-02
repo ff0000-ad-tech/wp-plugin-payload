@@ -6,10 +6,15 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ff0000-ad-tech/parse-settings-plugin.git"
+  },
+  "author": "RED Interactive Agency",
   "license": "ISC",
   "dependencies": {
+    "hooks-regex": "git://github.com/ff0000-ad-tech/hooks-regex.git",
     "lodash": "^4.17.4",
-    "hooks-regex": "git://github.com/ff0000-ad-tech/hooks-regex.git"
+    "require-from-string": "^2.0.1"
   }
 }
