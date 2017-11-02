@@ -5,11 +5,11 @@ Parse Settings Plugin (webpack)
 
 More docs forthcoming. Basic webpack implementation looks like:
 ```javascript
-		plugins: [
-			...
-			new ParseSettingsPlugin({
-				asset: 'index.html'
-			}),
-			...
-		]
+	plugins: [
+		...
+		new ParseSettingsPlugin({
+			asset: 'index.html'
+		}),
+		...
+	]
 ```
