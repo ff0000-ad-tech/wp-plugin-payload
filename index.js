@@ -7,10 +7,9 @@ const debug = require('debug');
 var log = debug('parse-settings-plugin');
 
 function ParseSettingsPlugin(options) {
-	// default options
 	this.options = _.extend({
-    asset: 'config.js'
-  }, options);
+		asset: 'config.js'
+	}, options);
 };
 
 
@@ -30,7 +29,7 @@ ParseSettingsPlugin.prototype.apply = function(compiler) {
 	compiler.plugin('emit', function(compilation, callback) {
 		// if requested asset has been loaded
 		if (self.options.asset in compilation.assets) {
-			log(`Processing ${self.options.asset}`);
+			log(`Processing ${self.options.asset} for settings (compilation.settings):`);
 			// proceed to parse each settings object from the asset source
 			const source = compilation.assets[self.options.asset].source();
 			for (var key in settings) {
