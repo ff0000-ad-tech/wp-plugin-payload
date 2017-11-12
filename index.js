@@ -4,7 +4,7 @@ const hooksRegex = require('hooks-regex');
 const requireFromString = require('require-from-string');
 
 const debug = require('debug');
-var log = debug('parse-settings-plugin');
+var log = debug('wp-plugin-settings');
 
 function ParseSettingsPlugin(options) {
 	this.options = _.extend({
