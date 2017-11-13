@@ -6,11 +6,8 @@ const requireFromString = require('require-from-string');
 const debug = require('debug');
 var log = debug('wp-plugin-settings');
 
-function WpPluginSettings(options) {
-	this.options = _.extend({
-		asset: 'index.html' // file that contains the Settings Hooks
-	}, options);
-
+function WpPluginSettings(deploy) {
+	this.deploy = deploy;
 	this.settings = {};
 
   this.startTime = Date.now();
@@ -19,16 +16,12 @@ function WpPluginSettings(options) {
 
 
 WpPluginSettings.prototype.apply = function(compiler) {
-	// define expected model with the hook-ids
-	var hooks = {
-		adParams: 'ad_params',
-		assets: 'assets',
-		environments: 'environments',
-		includes: 'includes',
-		externalIncludes: 'external_includes',
-		runtimeIncludes: 'runtime_includes'
-	};
+	// gather the settings prior to compile
+	compiler.plugin('after-plugins', (compilation, callback) => {
+		log('LOAD INDEX:')
+	});
 
+	// check to update the settings on emit
 	compiler.plugin('emit', (compilation, callback) => {
 		var shouldUpdate = true;
 
@@ -55,10 +48,10 @@ WpPluginSettings.prototype.apply = function(compiler) {
 		if (shouldUpdate) {
 			log(`Processing ${this.options.asset} for settings (compilation.settings):`);
 			// proceed to parse each settings object from the asset source
-			const source = compilation.assets[this.options.asset].source();
-			for (var key in hooks) {
-				this.settings[key] = parse(source, hooks[key], key);
-			}
+			this.settings = updateSettings(
+				compilation.assets[this.options.asset].source(),
+				this.settings
+			);
 		}
 
 		// add settings to compilation graph to make available to other plugins
@@ -69,6 +62,24 @@ WpPluginSettings.prototype.apply = function(compiler) {
 		callback();
 	});
 };
+
+
+// define expected model with the hook-ids
+var hooks = {
+	adParams: 'ad_params',
+	assets: 'assets',
+	environments: 'environments',
+	includes: 'includes',
+	externalIncludes: 'external_includes',
+	runtimeIncludes: 'runtime_includes'
+};
+
+function updateSettings(source, settings) {
+	for (var key in hooks) {
+		settings[key] = parse(source, hooks[key], key);
+	}
+	return settings;
+}
 
 function parse(source, hookParamId, key) {
 	var matches = source.match(
