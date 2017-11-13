@@ -6,18 +6,21 @@ const requireFromString = require('require-from-string');
 const debug = require('debug');
 var log = debug('wp-plugin-settings');
 
-function ParseSettingsPlugin(options) {
+function WpPluginSettings(options) {
 	this.options = _.extend({
-		asset: 'config.js'
+		asset: 'index.html' // file that contains the Settings Hooks
 	}, options);
+
+	this.settings = {};
+
+  this.startTime = Date.now();
+  this.prevTimestamps = {};
 };
 
 
-ParseSettingsPlugin.prototype.apply = function(compiler) {
-	var self = this;
-
+WpPluginSettings.prototype.apply = function(compiler) {
 	// define expected model with the hook-ids
-	var settings = {
+	var hooks = {
 		adParams: 'ad_params',
 		assets: 'assets',
 		environments: 'environments',
@@ -26,36 +29,56 @@ ParseSettingsPlugin.prototype.apply = function(compiler) {
 		runtimeIncludes: 'runtime_includes'
 	};
 
-	compiler.plugin('emit', function(compilation, callback) {
-		// if requested asset has been loaded
-		if (self.options.asset in compilation.assets) {
-			log(`Processing ${self.options.asset} for settings (compilation.settings):`);
-			// proceed to parse each settings object from the asset source
-			const source = compilation.assets[self.options.asset].source();
-			for (var key in settings) {
-				settings[key] = parse(source, settings[key], key);
+	compiler.plugin('emit', (compilation, callback) => {
+		var shouldUpdate = true;
+
+		// if requested asset has not been loaded
+		if (!(this.options.asset in compilation.assets)) {
+			log(`Asset not found: ${this.options.asset}`);
+			shouldUpdate = false;
+		}
+
+		// if asset has not been updated
+		for(var watchfile in compilation.fileTimestamps) {
+			if (path.basename(watchfile) == this.options.asset) {
+				const prevTimestamp = this.prevTimestamps[watchfile] || this.startTime;
+				const fileTimestamp = compilation.fileTimestamps[watchfile] || Infinity;
+				if (prevTimestamp >= fileTimestamp) {
+					shouldUpdate = false;
+					log(`${this.options.asset} has not changed`);
+				}
 			}
-			// add settings to compilation graph to make available to other plugins
-			compilation.settings = settings;
-			log(compilation.settings);
 		}
-		else {
-			log(`Asset not found: ${self.options.asset}`);
+		this.prevTimestamps = compilation.fileTimestamps;
+
+		// update Settings
+		if (shouldUpdate) {
+			log(`Processing ${this.options.asset} for settings (compilation.settings):`);
+			// proceed to parse each settings object from the asset source
+			const source = compilation.assets[this.options.asset].source();
+			for (var key in hooks) {
+				this.settings[key] = parse(source, hooks[key], key);
+			}
 		}
+
+		// add settings to compilation graph to make available to other plugins
+		compilation.settings = this.settings;
+		log(compilation.settings);
+
 		// return to webpack flow
 		callback();
 	});
 };
 
-function parse(source, hookParamId, jsKey) {
+function parse(source, hookParamId, key) {
 	var matches = source.match(
 		hooksRegex.get('Red', 'Settings', hookParamId)
 	);
 	if (matches) {
 		return requireFromString(
-			`${matches.groups.content} module.exports = ${jsKey};`
+			`${matches.groups.content} module.exports = ${key};`
 		);
 	}
 }
 
-module.exports = ParseSettingsPlugin;
+module.exports = WpPluginSettings;
