@@ -16,6 +16,7 @@
     "debug": "git://github.com/gmcdev/debug.git",
     "hooks-regex": "git://github.com/ff0000-ad-tech/hooks-regex.git",
     "lodash": "^4.17.4",
+    "prepend-http": "^2.0.0",
     "require-from-string": "^2.0.1"
   }
 }

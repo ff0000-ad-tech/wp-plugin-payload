@@ -1,7 +1,6 @@
 const _ = require('lodash');
 const path = require('path');
-const hooksRegex = require('hooks-regex');
-const requireFromString = require('require-from-string');
+const settings = require('./lib/settings.js');
 
 const debug = require('debug');
 var log = debug('wp-plugin-settings');
@@ -26,31 +25,35 @@ WpPluginSettings.prototype.apply = function(compiler) {
 		var shouldUpdate = true;
 
 		// if requested asset has not been loaded
-		if (!(this.options.asset in compilation.assets)) {
-			log(`Asset not found: ${this.options.asset}`);
+		if (!(this.deploy.ad.index in compilation.assets)) {
+			log(`Asset not found: ${this.deploy.ad.index}`);
 			shouldUpdate = false;
 		}
 
 		// if asset has not been updated
 		for(var watchfile in compilation.fileTimestamps) {
-			if (path.basename(watchfile) == this.options.asset) {
+			if (path.basename(watchfile) == this.deploy.ad.index) {
 				const prevTimestamp = this.prevTimestamps[watchfile] || this.startTime;
 				const fileTimestamp = compilation.fileTimestamps[watchfile] || Infinity;
 				if (prevTimestamp >= fileTimestamp) {
 					shouldUpdate = false;
-					log(`${this.options.asset} has not changed`);
+					log(`${this.deploy.ad.index} has not changed`);
 				}
 			}
 		}
 		this.prevTimestamps = compilation.fileTimestamps;
 
-		// update Settings
+		// do update
 		if (shouldUpdate) {
-			log(`Processing ${this.options.asset} for settings (compilation.settings):`);
-			// proceed to parse each settings object from the asset source
-			this.settings = updateSettings(
-				compilation.assets[this.options.asset].source(),
-				this.settings
+			log(`Processing ${this.deploy.ad.index} for settings (compilation.settings):`);
+			// refresh settings
+			this.settings = settings.refreshSettings(
+				compilation.assets[this.deploy.ad.index].source(),
+				this.deploy
+			);
+			// refresh deploy paths
+			this.deploy = settings.refreshDeploy(
+				this.settings, this.deploy
 			);
 		}
 
@@ -64,32 +67,6 @@ WpPluginSettings.prototype.apply = function(compiler) {
 };
 
 
-// define expected model with the hook-ids
-var hooks = {
-	adParams: 'ad_params',
-	assets: 'assets',
-	environments: 'environments',
-	includes: 'includes',
-	externalIncludes: 'external_includes',
-	runtimeIncludes: 'runtime_includes'
-};
 
-function updateSettings(source, settings) {
-	for (var key in hooks) {
-		settings[key] = parse(source, hooks[key], key);
-	}
-	return settings;
-}
-
-function parse(source, hookParamId, key) {
-	var matches = source.match(
-		hooksRegex.get('Red', 'Settings', hookParamId)
-	);
-	if (matches) {
-		return requireFromString(
-			`${matches.groups.content} module.exports = ${key};`
-		);
-	}
-}
 
 module.exports = WpPluginSettings;
