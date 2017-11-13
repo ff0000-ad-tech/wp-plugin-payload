@@ -17,7 +17,7 @@ function WpPluginSettings(deploy) {
 WpPluginSettings.prototype.apply = function(compiler) {
 	// gather the settings prior to compile
 	compiler.plugin('after-plugins', (compilation, callback) => {
-		log('LOAD INDEX:')
+		log('LOAD INDEX: Need to create a module that imports all of the binary assets!!!!!!!!!!!!!!!!!');
 	});
 
 	// check to update the settings on emit
@@ -26,7 +26,7 @@ WpPluginSettings.prototype.apply = function(compiler) {
 
 		// if requested asset has not been loaded
 		if (!(this.deploy.ad.index in compilation.assets)) {
-			log(`Asset not found: ${this.deploy.ad.index}`);
+			log(`Cannot update asset, not found: ${this.deploy.ad.index}`);
 			shouldUpdate = false;
 		}
 
@@ -45,12 +45,11 @@ WpPluginSettings.prototype.apply = function(compiler) {
 
 		// do update
 		if (shouldUpdate) {
-			log(`Processing ${this.deploy.ad.index} for settings (compilation.settings):`);
 			// refresh settings
 			this.settings = settings.refreshSettings(
 				compilation.assets[this.deploy.ad.index].source(),
 				this.deploy
-			);
+			);			
 			// refresh deploy paths
 			this.deploy = settings.refreshDeploy(
 				this.settings, this.deploy
@@ -59,7 +58,6 @@ WpPluginSettings.prototype.apply = function(compiler) {
 
 		// add settings to compilation graph to make available to other plugins
 		compilation.settings = this.settings;
-		log(compilation.settings);
 
 		// return to webpack flow
 		callback();
