@@ -33,9 +33,18 @@ WpPluginPayload.prototype.apply = function (compiler) {
 			this.deploy.compile.images = false;
 			this.deploy.compile.fonts = false;
 		}
-		// build payload entry target
+		// build entry targets
 		else {
-			updatePayloadImports(compiler, this.deploy);
+			// payload
+			importer.updatePayloadImports(
+				compiler.options.entry.payload, 
+				this.deploy
+			);
+			// inline
+			importer.updateInlineImports(
+				compiler.options.entry.inline, 
+				this.deploy
+			);
 		}
 	});
 
@@ -79,9 +88,15 @@ WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 			// deploy settings may be affected
 			this.deploy = deployManager.refresh(this.deploy);
 
-			// payload assets may be affected
-			updatePayloadImports(compiler, this.deploy);
-
+			// entry targets may be affected
+			importer.updatePayloadImports(
+				compiler.options.entry.payload, 
+				this.deploy
+			);
+			importer.updateInlineImports(
+				compiler.options.entry.inline, 
+				this.deploy
+			);
 			return;
 		}
 	}
@@ -143,30 +158,7 @@ WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestF
 }
 
 
-function updatePayloadImports(compiler, deploy) {
-	log('Updating payload-imports');
-	var imports = '';
 
-	// build image imports
-	imports += importer.buildImports(
-		deploy.settings.assets.images.map((path) => {
-			return './images/' + path;
-		})
-	);
-	// // build font imports
-	// imports += importer.buildImports(
-	// 	this.settings.assets.fonts.map((path) => {
-	// 		return '../_adlib/common/fonts/' + path;
-	// 	})
-	// );
-
-	// write payload entry target
-	importer.writeEntry(
-		compiler.options.entry.payload,
-		imports
-	);
-
-}
 
 
 module.exports = WpPluginPayload;
