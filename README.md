@@ -1,6 +1,6 @@
 ##### RED Interactive Agency - Ad Technology
 
-Webpack Plugin - Settings
+Webpack Plugin - Payload
 ===============
 
 More docs forthcoming.
