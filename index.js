@@ -2,14 +2,14 @@ const _ = require('lodash');
 const path = require('path');
 
 const deployManager = require('wp-deploy-manager');
-const payload = require('./lib/payload.js');
+const importer = require('./lib/importer.js');
 
 
 const debug = require('debug');
-var log = debug('wp-plugin-settings');
+var log = debug('wp-plugin-payload');
 
 
-function WpPluginSettings(deploy) {
+function WpPluginPayload(deploy) {
 	this.deploy = deploy;
 
   this.startTime = Date.now();
@@ -17,12 +17,12 @@ function WpPluginSettings(deploy) {
 };
 
 
-WpPluginSettings.prototype.apply = function(compiler) {
+WpPluginPayload.prototype.apply = function(compiler) {
+
+
 	
 	// on compiler compilation
 	compiler.plugin('entry-option', (compilation, callback) => {
-		log('Loading Settings, THIS SHOULD ONLY HAPPEN ONCE ---------------->');
-
 		// no payload entry!! must be specified for binary-compiling
 		if (!compiler.options.entry.payload) {
 			log('Cannot compile images & fonts!! No binary payload specified (compiler.options.entry.payload)');
@@ -52,7 +52,6 @@ WpPluginSettings.prototype.apply = function(compiler) {
 				compiler.options.entry.payload,
 				imports
 			);
-			log('WRITE IS COMPLETE');
 		}
 	});
 
@@ -98,4 +97,4 @@ WpPluginSettings.prototype.apply = function(compiler) {
 
 
 
-module.exports = WpPluginSettings;
+module.exports = WpPluginPayload;
