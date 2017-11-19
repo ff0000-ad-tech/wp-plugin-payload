@@ -1,13 +1,16 @@
 const _ = require('lodash');
 const path = require('path');
-const settings = require('./lib/settings.js');
+
+const deployManager = require('wp-deploy-manager');
+const payload = require('./lib/payload.js');
+
 
 const debug = require('debug');
 var log = debug('wp-plugin-settings');
 
+
 function WpPluginSettings(deploy) {
 	this.deploy = deploy;
-	this.settings = {};
 
   this.startTime = Date.now();
   this.prevTimestamps = {};
@@ -15,19 +18,55 @@ function WpPluginSettings(deploy) {
 
 
 WpPluginSettings.prototype.apply = function(compiler) {
-	// gather the settings prior to compile
-	compiler.plugin('after-plugins', (compilation, callback) => {
-		log('LOAD INDEX: Need to create a module that imports all of the binary assets!!!!!!!!!!!!!!!!!');
+	
+	// on compiler compilation
+	compiler.plugin('entry-option', (compilation, callback) => {
+		log('Loading Settings, THIS SHOULD ONLY HAPPEN ONCE ---------------->');
+
+		// no payload entry!! must be specified for binary-compiling
+		if (!compiler.options.entry.payload) {
+			log('Cannot compile images & fonts!! No binary payload specified (compiler.options.entry.payload)');
+			this.deploy.compile.images = false;
+			this.deploy.compile.fonts = false;
+		}
+		// build payload entry target
+		else {
+			log('Building imports for payload assets');
+			var imports = '';
+
+			// build image imports
+			imports += payload.buildImports(
+				this.deploy.settings.assets.images.map((path) => {
+					return './images/' + path;
+				})
+			);
+			// // build font imports
+			// imports += payload.buildImports(
+			// 	this.settings.assets.fonts.map((path) => {
+			// 		return '../_adlib/common/fonts/' + path;
+			// 	})
+			// );
+
+			// write payload entry target
+			payload.writeEntry(
+				compiler.options.entry.payload,
+				imports
+			);
+			log('WRITE IS COMPLETE');
+		}
 	});
 
-	// check to update the settings on emit
+
+
+	// on compiler emit
 	compiler.plugin('emit', (compilation, callback) => {
-		var shouldUpdate = true;
+		log('SETTINGS PLUGIN EMIT has been called');
+		var shouldRefresh = true;
 
 		// if requested asset has not been loaded
 		if (!(this.deploy.ad.index in compilation.assets)) {
 			log(`Cannot update asset, not found: ${this.deploy.ad.index}`);
-			shouldUpdate = false;
+			shouldRefresh = false;
 		}
 
 		// if asset has not been updated
@@ -36,33 +75,25 @@ WpPluginSettings.prototype.apply = function(compiler) {
 				const prevTimestamp = this.prevTimestamps[watchfile] || this.startTime;
 				const fileTimestamp = compilation.fileTimestamps[watchfile] || Infinity;
 				if (prevTimestamp >= fileTimestamp) {
-					shouldUpdate = false;
+					shouldRefresh = false;
 					log(`${this.deploy.ad.index} has not changed`);
 				}
 			}
 		}
 		this.prevTimestamps = compilation.fileTimestamps;
 
-		// do update
-		if (shouldUpdate) {
-			// refresh settings
-			this.settings = settings.refreshSettings(
-				compilation.assets[this.deploy.ad.index].source(),
-				this.deploy
-			);			
-			// refresh deploy paths
-			this.deploy = settings.refreshDeploy(
-				this.settings, this.deploy
-			);
+		// refresh deploy profile
+		if (shouldRefresh) {
+			log('^^^^^^ SHOULD REFRESH');
+			this.deploy = deployManager.refresh(this.deploy);
 		}
-
-		// add settings to compilation graph to make available to other plugins
-		compilation.settings = this.settings;
 
 		// return to webpack flow
 		callback();
 	});
 };
+
+
 
 
 
