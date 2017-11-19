@@ -14,15 +14,19 @@ function WpPluginPayload(deploy) {
 
   this.startTime = Date.now();
   this.prevTimestamps = {};
+
+  this.payloadModules = [];
 };
 
 
-WpPluginPayload.prototype.apply = function(compiler) {
+WpPluginPayload.prototype.apply = function (compiler) {
 
 
 	
 	// on compiler compilation
 	compiler.plugin('entry-option', (compilation, callback) => {
+		log('THIS SHOULD ONLY HAPPEN ONCE');
+
 		// no payload entry!! must be specified for binary-compiling
 		if (!compiler.options.entry.payload) {
 			log('Cannot compile images & fonts!! No binary payload specified (compiler.options.entry.payload)');
@@ -31,27 +35,7 @@ WpPluginPayload.prototype.apply = function(compiler) {
 		}
 		// build payload entry target
 		else {
-			log('Building imports for payload assets');
-			var imports = '';
-
-			// build image imports
-			imports += importer.buildImports(
-				this.deploy.settings.assets.images.map((path) => {
-					return './images/' + path;
-				})
-			);
-			// // build font imports
-			// imports += importer.buildImports(
-			// 	this.settings.assets.fonts.map((path) => {
-			// 		return '../_adlib/common/fonts/' + path;
-			// 	})
-			// );
-
-			// write payload entry target
-			importer.writeEntry(
-				compiler.options.entry.payload,
-				imports
-			);
+			updatePayloadImports(compiler, this.deploy);
 		}
 	});
 
@@ -59,35 +43,20 @@ WpPluginPayload.prototype.apply = function(compiler) {
 
 	// on compiler emit
 	compiler.plugin('emit', (compilation, callback) => {
-		log('SETTINGS PLUGIN EMIT has been called');
-		var shouldRefresh = true;
+		log('PAYLOAD PLUGIN EMIT has been called');
+		//log(compilation);
 
-		// if requested asset has not been loaded
-		if (!(this.deploy.ad.index in compilation.assets)) {
-			log(`Cannot update asset, not found: ${this.deploy.ad.index}`);
-			shouldRefresh = false;
-		}
+		// updates to settings: may result in new payload-imports
+		this.watchSettings(compiler, compilation);
 
-		// if asset has not been updated
-		for(var watchfile in compilation.fileTimestamps) {
-			if (path.basename(watchfile) == this.deploy.ad.index) {
-				const prevTimestamp = this.prevTimestamps[watchfile] || this.startTime;
-				const fileTimestamp = compilation.fileTimestamps[watchfile] || Infinity;
-				if (prevTimestamp >= fileTimestamp) {
-					shouldRefresh = false;
-					log(`${this.deploy.ad.index} has not changed`);
-				}
-			}
-		}
-		this.prevTimestamps = compilation.fileTimestamps;
+		// updates to payload-imports: may add/remove payload-modules 
+		this.watchPayloadImports(compiler, compilation);
 
-		// refresh deploy profile
-		if (shouldRefresh) {
-			log('^^^^^^ SHOULD REFRESH');
-			this.deploy = deployManager.refresh(this.deploy);
-		}
+		// updates to payload-modules: require recompile of payload
+		this.watchPayloadModules(compiler, compilation);
 
 		// return to webpack flow
+		this.prevTimestamps = compilation.fileTimestamps;
 		callback();
 	});
 };
@@ -95,6 +64,109 @@ WpPluginPayload.prototype.apply = function(compiler) {
 
 
 
+/* -- WATCH SETTINGS ----
+ *
+ */
+WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
+	for (var watchFile in compilation.fileTimestamps) {
+		const settingsPath = path.resolve(
+			`${global.appPath}/${this.deploy.context.build}/${this.deploy.paths.ad.context}/${this.deploy.ad.index}`
+		);
+		if (this.hasUpdate(compilation, watchFile, settingsPath)) {
+			log(`${this.deploy.ad.index} has changed`);
+			log('SHOULD REFRESH DEPLOY & PAYLOAD');
+			
+			// deploy settings may be affected
+			this.deploy = deployManager.refresh(this.deploy);
+
+			// payload assets may be affected
+			updatePayloadImports(compiler, this.deploy);
+
+			return;
+		}
+	}
+}
+
+
+
+
+
+/* -- WATCH PAYLOAD-IMPORTS ----
+ *
+ */
+WpPluginPayload.prototype.watchPayloadImports = function (compiler, compilation) {
+	for (var watchFile in compilation.fileTimestamps) {
+		// settings are assumed to be in entry.initial
+		if (this.hasUpdate(compilation, watchFile, compiler.options.entry.payload)) {
+			log('.payload-imports HAS UPDATE +++++++++++++++++++++=');
+			this.payloadModules = [];
+			compilation._modules[watchFile].dependencies.forEach((dependency) => {
+				if (dependency.constructor.name == 'HarmonyImportDependency') {
+					// log(dependency.module._source)
+					this.payloadModules.push(
+						dependency.module
+					);
+				}
+			});
+			return;
+		}
+	}
+}
+
+
+
+
+/* -- WATCH PAYLOAD-MODULES ----
+ *
+ */
+WpPluginPayload.prototype.watchPayloadModules = function (compiler, compilation) {
+	for (var watchFile in compilation.fileTimestamps) {
+		for (var i in this.payloadModules) {
+			if (this.hasUpdate(compilation, watchFile, this.payloadModules[i].userRequest)) {
+				log('PAYLOAD MODULE IS UPDATED:', watchFile);
+			}
+		}
+	}
+}
+
+
+
+
+WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestFile) {
+	if (watchFile == requestFile) {
+		const prevTimestamp = this.prevTimestamps[watchFile] || this.startTime;
+		const fileTimestamp = compilation.fileTimestamps[watchFile] || Infinity;
+		if (prevTimestamp < fileTimestamp) {
+			return true;
+		}		
+	}
+}
+
+
+function updatePayloadImports(compiler, deploy) {
+	log('Updating payload-imports');
+	var imports = '';
+
+	// build image imports
+	imports += importer.buildImports(
+		deploy.settings.assets.images.map((path) => {
+			return './images/' + path;
+		})
+	);
+	// // build font imports
+	// imports += importer.buildImports(
+	// 	this.settings.assets.fonts.map((path) => {
+	// 		return '../_adlib/common/fonts/' + path;
+	// 	})
+	// );
+
+	// write payload entry target
+	importer.writeEntry(
+		compiler.options.entry.payload,
+		imports
+	);
+
+}
 
 
 module.exports = WpPluginPayload;
