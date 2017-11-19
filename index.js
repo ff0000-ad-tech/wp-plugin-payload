@@ -35,20 +35,20 @@ WpPluginPayload.prototype.apply = function(compiler) {
 			var imports = '';
 
 			// build image imports
-			imports += payload.buildImports(
+			imports += importer.buildImports(
 				this.deploy.settings.assets.images.map((path) => {
 					return './images/' + path;
 				})
 			);
 			// // build font imports
-			// imports += payload.buildImports(
+			// imports += importer.buildImports(
 			// 	this.settings.assets.fonts.map((path) => {
 			// 		return '../_adlib/common/fonts/' + path;
 			// 	})
 			// );
 
 			// write payload entry target
-			payload.writeEntry(
+			importer.writeEntry(
 				compiler.options.entry.payload,
 				imports
 			);
