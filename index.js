@@ -9,8 +9,26 @@ const debug = require('debug');
 var log = debug('wp-plugin-payload');
 
 
-function WpPluginPayload(deploy) {
+function WpPluginPayload(deploy, options) {
 	this.deploy = deploy;
+	this.options = options;
+	/* TODO: Document options
+			{
+				entries: [{
+					entry: 'image',
+					assets: {
+						source: this.deploy.settings.assets.images,
+						importPath: `./${deploy.env.paths.ad.images}`
+					}
+				},{
+					entry: 'font',
+					assets: {
+						source: this.deploy.settings.assets.images,
+						importPath: `../${deploy.env.paths.common.context}/${deploy.env.paths.common.fonts}`
+					}
+				}]
+			}
+	*/
 
   this.startTime = Date.now();
   this.prevTimestamps = {};
@@ -20,29 +38,25 @@ function WpPluginPayload(deploy) {
 WpPluginPayload.prototype.apply = function (compiler) {
 
 
-	// on compiler compilation
+	// on compiler entry (happens once)
 	compiler.plugin('entry-option', (compilation, callback) => {
-		log('THIS SHOULD ONLY HAPPEN ONCE');
+		log('Preparing payload management...');
+
+		// force initial compile to happen
 		this.deploy.payload.recompile = true;
 
-		// check to create payload-imports
-		importer.updatePayloadImports(
-			compiler.options.entry.payload, 
-			this.deploy
-		);
+		// prepare options
+		this.prepareOptions(compiler);
 
-		// check to create inline-imports
-		importer.updateInlineImports(
-			compiler.options.entry.inline, 
-			this.deploy
-		);
+		// update payload-imports
+		this.updatePayloadImports(compiler);
 	});
 
 
 
-	// on compiler emit
+	// on compiler emit (happens on update)
 	compiler.plugin('emit', (compilation, callback) => {
-		log('Watching...');
+		log('PROCESSING CHANGE...');
 
 		// updates to settings: may result in new payload-imports
 		this.watchSettings(compiler, compilation);
@@ -76,17 +90,9 @@ WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 			// deploy settings may be affected
 			this.deploy = deployManager.refresh(this.deploy);
 
-			// payload entry may be affected
-			importer.updatePayloadImports(
-				compiler.options.entry.payload, 
-				this.deploy
-			);
+			// update payload-imports
+			this.updatePayloadImports(compiler);
 
-			// inline entry may be affected
-			importer.updateInlineImports(
-				compiler.options.entry.inline, 
-				this.deploy
-			);
 			return;
 		}
 	}
@@ -115,6 +121,44 @@ WpPluginPayload.prototype.watchPayloadModules = function (compiler, compilation)
 /* -- UTILITIES ----
  *
  */
+
+// prepare options
+WpPluginPayload.prototype.prepareOptions = function (compiler) {
+	this.options.entries = this.options.entries || [];
+
+	// validate entry-targets exist on compiler
+	this.options.entries = this.options.entries.filter((entry) => {
+		if (entry.name in compiler.options.entry) {
+			return true;
+		}
+		else {
+			log(`Cannot watch/compile '${entry.name}'!! No entry specified at 'compiler.options.entry.${entry.name}'`);
+			this.deploy.payload[entry.name].compile = false;
+		}
+	})
+	// map entry-target to each request
+	.map((entry) => {
+		entry.target = compiler.options.entry[entry.name];
+		return entry;
+	});
+
+	log(this.options);
+}
+
+// update imports
+WpPluginPayload.prototype.updatePayloadImports = function (compiler) {
+	// update payload-imports
+	this.options.entries.forEach((entry) => {
+		importer.updateImports(entry);
+	});
+
+	// update inline-imports
+	importer.updateInlineImports(
+		compiler.options.entry.inline, 
+		this.deploy
+	);
+}
+
 // utility for determining if a watch file has been updated
 WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestFile) {
 	if (watchFile == requestFile) {
@@ -126,9 +170,12 @@ WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestF
 	}
 }
 
+
 // utility to rebuild payload dependencies list
 WpPluginPayload.prototype.refreshPayloadModules = function (compiler, compilation) {
 	if (!compiler.options.entry.payload) { return; }
+
+	log(compiler.options.module.rules);
 
 	log('Refreshing payload modules');
 	this.deploy.payload.modules = [];
