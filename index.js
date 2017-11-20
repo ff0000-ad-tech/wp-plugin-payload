@@ -68,10 +68,10 @@ WpPluginPayload.prototype.apply = function (compiler) {
 WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 	for (var watchFile in compilation.fileTimestamps) {
 		const settingsPath = path.resolve(
-			`${global.appPath}/${this.deploy.context.build}/${this.deploy.paths.ad.context}/${this.deploy.ad.index}`
+			`${global.appPath}/${this.deploy.env.context.build}/${this.deploy.env.paths.ad.context}/${this.deploy.target.index}`
 		);
 		if (this.hasUpdate(compilation, watchFile, settingsPath)) {
-			log(`${this.deploy.ad.index} has changed`);
+			log(`${this.deploy.target.index} has changed`);
 			
 			// deploy settings may be affected
 			this.deploy = deployManager.refresh(this.deploy);
