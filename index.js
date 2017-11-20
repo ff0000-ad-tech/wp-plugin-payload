@@ -118,6 +118,7 @@ WpPluginPayload.prototype.watchPayloadImports = function (compiler, compilation)
 			compilation._modules[watchFile].dependencies.forEach((dependency) => {
 				if (dependency.constructor.name == 'HarmonyImportDependency') {
 					// log(dependency.module._source)
+					/*** THINKING THESE CAN GO on `compilation.payloadModules`, for wp-plugin-assets ***/
 					this.payloadModules.push(
 						dependency.module
 					);
