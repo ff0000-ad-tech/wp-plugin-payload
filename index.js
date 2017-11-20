@@ -14,52 +14,41 @@ function WpPluginPayload(deploy) {
 
   this.startTime = Date.now();
   this.prevTimestamps = {};
-
-  this.payloadModules = [];
 };
 
 
 WpPluginPayload.prototype.apply = function (compiler) {
 
 
-	
 	// on compiler compilation
 	compiler.plugin('entry-option', (compilation, callback) => {
 		log('THIS SHOULD ONLY HAPPEN ONCE');
+		this.deploy.payload.recompile = true;
 
-		// no payload entry!! must be specified for binary-compiling
-		if (!compiler.options.entry.payload) {
-			log('Cannot compile images & fonts!! No binary payload specified (compiler.options.entry.payload)');
-			this.deploy.compile.images = false;
-			this.deploy.compile.fonts = false;
-		}
-		// build entry targets
-		else {
-			// payload
-			importer.updatePayloadImports(
-				compiler.options.entry.payload, 
-				this.deploy
-			);
-			// inline
-			importer.updateInlineImports(
-				compiler.options.entry.inline, 
-				this.deploy
-			);
-		}
+		// check to create payload-imports
+		importer.updatePayloadImports(
+			compiler.options.entry.payload, 
+			this.deploy
+		);
+
+		// check to create inline-imports
+		importer.updateInlineImports(
+			compiler.options.entry.inline, 
+			this.deploy
+		);
 	});
 
 
 
 	// on compiler emit
 	compiler.plugin('emit', (compilation, callback) => {
-		log('PAYLOAD PLUGIN EMIT has been called');
-		//log(compilation);
+		log('Watching...');
 
 		// updates to settings: may result in new payload-imports
 		this.watchSettings(compiler, compilation);
 
 		// updates to payload-imports: may add/remove payload-modules 
-		this.watchPayloadImports(compiler, compilation);
+		this.refreshPayloadModules(compiler, compilation);
 
 		// updates to payload-modules: require recompile of payload
 		this.watchPayloadModules(compiler, compilation);
@@ -83,16 +72,17 @@ WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 		);
 		if (this.hasUpdate(compilation, watchFile, settingsPath)) {
 			log(`${this.deploy.ad.index} has changed`);
-			log('SHOULD REFRESH DEPLOY & PAYLOAD');
 			
 			// deploy settings may be affected
 			this.deploy = deployManager.refresh(this.deploy);
 
-			// entry targets may be affected
+			// payload entry may be affected
 			importer.updatePayloadImports(
 				compiler.options.entry.payload, 
 				this.deploy
 			);
+
+			// inline entry may be affected
 			importer.updateInlineImports(
 				compiler.options.entry.inline, 
 				this.deploy
@@ -104,42 +94,17 @@ WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 
 
 
-
-
-/* -- WATCH PAYLOAD-IMPORTS ----
- *
- */
-WpPluginPayload.prototype.watchPayloadImports = function (compiler, compilation) {
-	for (var watchFile in compilation.fileTimestamps) {
-		// settings are assumed to be in entry.initial
-		if (this.hasUpdate(compilation, watchFile, compiler.options.entry.payload)) {
-			log('.payload-imports HAS UPDATE +++++++++++++++++++++=');
-			this.payloadModules = [];
-			compilation._modules[watchFile].dependencies.forEach((dependency) => {
-				if (dependency.constructor.name == 'HarmonyImportDependency') {
-					// log(dependency.module._source)
-					/*** THINKING THESE CAN GO on `compilation.payloadModules`, for wp-plugin-assets ***/
-					this.payloadModules.push(
-						dependency.module
-					);
-				}
-			});
-			return;
-		}
-	}
-}
-
-
-
-
 /* -- WATCH PAYLOAD-MODULES ----
  *
+ *	If any of the payload-modules have been updated, the payload needs to be recompiled
  */
 WpPluginPayload.prototype.watchPayloadModules = function (compiler, compilation) {
 	for (var watchFile in compilation.fileTimestamps) {
-		for (var i in this.payloadModules) {
-			if (this.hasUpdate(compilation, watchFile, this.payloadModules[i].userRequest)) {
-				log('PAYLOAD MODULE IS UPDATED:', watchFile);
+		for (var i in this.deploy.payload.modules) {
+			if (this.hasUpdate(compilation, watchFile, this.deploy.payload.modules[i].userRequest)) {
+				log(`payload modules have changed - RECOMPILE`);
+				this.deploy.payload.recompile = true;
+				return; // only one change is needed to flag recompile
 			}
 		}
 	}
@@ -147,7 +112,10 @@ WpPluginPayload.prototype.watchPayloadModules = function (compiler, compilation)
 
 
 
-
+/* -- UTILITIES ----
+ *
+ */
+// utility for determining if a watch file has been updated
 WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestFile) {
 	if (watchFile == requestFile) {
 		const prevTimestamp = this.prevTimestamps[watchFile] || this.startTime;
@@ -158,6 +126,22 @@ WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestF
 	}
 }
 
+// utility to rebuild payload dependencies list
+WpPluginPayload.prototype.refreshPayloadModules = function (compiler, compilation) {
+	if (!compiler.options.entry.payload) { return; }
+
+	log('Refreshing payload modules');
+	this.deploy.payload.modules = [];
+	const dependencies = compilation._modules[compiler.options.entry.payload].dependencies;
+	dependencies.forEach((dependency) => {
+		if (dependency.constructor.name == 'HarmonyImportDependency') {
+			// log(module.module._source)
+			this.deploy.payload.modules.push(
+				dependency.module
+			);
+		}
+	});	
+}
 
 
 
