@@ -56,7 +56,7 @@ WpPluginPayload.prototype.apply = function (compiler) {
 
 	// on compiler emit (happens on update)
 	compiler.plugin('emit', (compilation, callback) => {
-		log('PROCESSING CHANGE...');
+		log('PROCESSING COMPILER EMIT');
 
 		// updates to settings: may result in new payload-imports
 		this.watchSettings(compiler, compilation);
