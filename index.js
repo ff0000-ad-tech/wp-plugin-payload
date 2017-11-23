@@ -72,10 +72,6 @@ WpPluginPayload.prototype.apply = function (compiler) {
  */
 WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 	for (var watchFile in compilation.fileTimestamps) {
-		const settingsPath = path.resolve(
-			`${global.appPath}/${settings.source.context}`
-			//`${global.appPath}/${this.deploy.env.context.build}/${this.deploy.env.paths.ad.context}/${this.deploy.target.index}`
-		);
 		var hasUpdate = false;
 		for (var i in this.options.watchPaths) {
 			if (this.hasUpdate(compilation, watchFile, this.options.watchPaths[i])) {
@@ -86,6 +82,7 @@ WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 		if (hasUpdate) {
 			// deploy settings may be affected
 			deployManager.refresh(this.deploy);
+			log(this.deploy.ad.assets);
 
 			// update payload-imports
 			this.updatePayloadImports(compiler);
@@ -97,7 +94,7 @@ WpPluginPayload.prototype.watchSettings = function (compiler, compilation) {
 
 /* -- WATCH PAYLOAD-MODULES ----
  *
- *	If any of the payload-modules have been updated, the payload needs to be recompiled
+ *	If any of the payload-modules have been updated, the fba-payload needs to be recompiled
  */
 WpPluginPayload.prototype.watchPayloadModules = function (compiler, compilation) {
 	// each payload entry
@@ -158,7 +155,9 @@ WpPluginPayload.prototype.init = function (compiler) {
 	this.options.entries = this.options.entries || [];
 
 	// map entry-target to each request
-	this.options.entries = this.options.entries.map((entry) => {
+	for (var i in this.options.entries) {
+		var entry = this.options.entries[i];
+
 		// prepare output: to be consumed by wp-plugin-assets
 		this.output = this.options.output || {};
 
@@ -186,11 +185,8 @@ WpPluginPayload.prototype.init = function (compiler) {
 				entry.target = compiler.options.entry[entry.name];
 			}
 		}
-
-
-
-		return entry;
-	});
+		this.options.entries[i] = entry;
+	}
 
 	log(this.options);
 }
@@ -198,6 +194,8 @@ WpPluginPayload.prototype.init = function (compiler) {
 
 // update imports
 WpPluginPayload.prototype.updatePayloadImports = function (compiler) {
+	log('Updating payload-imports');
+	log(this.options.entries);
 	this.options.entries.forEach((entry) => {
 		if (entry.disabled) return;
 
@@ -237,7 +235,6 @@ WpPluginPayload.prototype.refreshFbaModules = function (compiler, compilation) {
 		const dependencies = compilation._modules[entry.target].dependencies;
 		dependencies.forEach((dependency) => {
 			if (dependency.constructor.name == 'HarmonyImportDependency') {
-				// log(module.module._source)
 				this.output[entry.name].modules.push(
 					dependency.module
 				);
