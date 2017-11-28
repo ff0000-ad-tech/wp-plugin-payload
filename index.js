@@ -24,7 +24,6 @@ function WpPluginPayload(DM, options) {
 
 WpPluginPayload.prototype.apply = function (compiler) {
 
-
 	// on compiler entry (happens once)
 	compiler.plugin('entry-option', (compilation, callback) => {
 		// init
@@ -34,28 +33,31 @@ WpPluginPayload.prototype.apply = function (compiler) {
 		this.updatePayloadImports(compiler);
 	});
 
-	// after first compile, check settings for updates
+
+	// check settings for updates (happens after each compile)
 	compiler.plugin('should-emit', (compilation) => {
 		// updates to settings may result in new payload-imports
 		if (this.settingsHaveUpdate(compiler, compilation)) {
+			log('\nSETTINGS have changed - will recompile to get the latest payload-modules');
+
+			// refresh settings
 			this.DM.ad.refresh();
+
 			// update payload-imports
 			this.updatePayloadImports(compiler);
-
 			this.prevTimestamps = compilation.fileTimestamps;
-
-			log('\nSHOULD NOT EMIT!!');
 			return false;
 		}
 		return true;
 	});
+
 
 	// on compiler emit (happens on dependency-updates)
 	compiler.plugin('emit', (compilation, callback) => {
 		log('\nPROCESSING COMPILER EMIT');
 
 			// updates store with requested payload-modules 
-			this.storePayloadModules(compiler, compilation);
+			this.refreshPayloadStore(compiler, compilation);
 
 			// updates to payload-modules: require recompile of payload
 			this.watchPayloadModules(compiler, compilation);
@@ -93,27 +95,24 @@ WpPluginPayload.prototype.settingsHaveUpdate = function (compiler, compilation) 
 
 /* -- WATCH PAYLOAD-MODULES ----
  *
- *	If any of the payload-modules have been updated, the fba-payload needs to be recompiled
+ *	If any of the payload-modules have been updated:
+ *	 the fba-payload needs to be recompiled / the assets need to be re-copied
  */
 WpPluginPayload.prototype.watchPayloadModules = function (compiler, compilation) {
 	// each payload entry
 	this.options.entries.forEach((entry) => {
-		if (entry.disabled) return;
-		log('**** updating payload-modules?', entry.name);
-
 		const payload = this.DM.payload.store.get(entry.name);
-		log('+++++ found payload:', payload.name);
 		//
 		for (var watchFile in compilation.fileTimestamps) {
 			// for each entry-module
 			for (var m in payload.modules) {
 				if (this.hasUpdate(compilation, watchFile, payload.modules[m].userRequest)) {
 					log(`'${entry.name}' modules have changed - RECOMPILE`);
-					// this.DM.payload.store.update({
-					// 	name: entry.name,
-					// 	recompile: true
-					// });
-					// return; // only one change is needed to flag recompile for this entry
+					this.DM.payload.store.update({
+						name: entry.name,
+						dirty: true
+					});
+					return; // only one change is needed to flag dirty for this entry
 				}
 			}
 		}			
@@ -173,9 +172,13 @@ WpPluginPayload.prototype.preparePayload = function (compiler) {
 			// turn off compiling for this type/entry
 			entry.disabled = true;
 		}
-		this.storePayload(compiler, entry);
+		// prepare target: the full path to the entry
+		entry.target = compiler.options.entry[entry.name]
+
+		this.createPayload(compiler, entry);
 	}
 }
+
 
 
 
@@ -183,8 +186,6 @@ WpPluginPayload.prototype.preparePayload = function (compiler) {
 WpPluginPayload.prototype.updatePayloadImports = function (compiler) {
 	log('\nUpdating payload-imports');
 	this.options.entries.forEach((entry) => {
-		if (entry.disabled) return;
-
 		// update payload-imports
 		if (entry.type.match(/^fbA/i)) {
 			importer.updateImports(entry);
@@ -209,29 +210,55 @@ WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestF
 }
 
 
+
+
 // utility to rebuild payload dependencies list on store-object
-WpPluginPayload.prototype.storePayloadModules = function (compiler, compilation) {
-	log('\nStoring payload modules:');
-	this.DM.payload.store.reset();
+WpPluginPayload.prototype.refreshPayloadStore = function (compiler, compilation) {
+	log('Refreshing modules in payload store:');
 
 	this.options.entries.forEach((entry) => {
+		var modules = [];
+		var depLog = '';
 		if (entry.disabled) {
-			this.storePayload(compiler, entry);
+			// this is just for purposes of sensible output
+			modules = entry.assets.get().filter((dependency) => {
+				depLog += `  ${dependency}`;
+				return true;
+			});
 		}
 		else {
-			// isolate module data from dependency graph
-			modules = [];
+			// store all modules data for this entry, which exist in the webpack dependency graph due to payload-imports
 			const dependencies = compilation._modules[entry.target].dependencies;
 			dependencies.forEach((dependency) => {
 				if (dependency.constructor.name == 'HarmonyImportDependency') {
-					log('&&&&& pushing module for', dependency.module.userRequest);
+					depLog += `  ${dependency.module.rawRequest}\n`;
 					modules.push(
 						dependency.module
 					);
 				}
 			});
+		}
+
+		var existingPayload = this.DM.payload.store.get(entry.name);
+		if (existingPayload) {
+			log(` updating existing payload for '${entry.name}'`);
+			log(depLog);
+			// adding/removing modules dirties the whole payload
+			var dirty = existingPayload.dirty || false;
+			if (existingPayload.modules.length != modules.length) {
+				dirty = true;
+			}
 			// update store
-			this.storePayload(compiler, entry, modules);
+			this.DM.payload.store.update({
+				name: entry.name,
+				modules: modules,
+				dirty: dirty
+			});
+		}
+		// presumably this won't happen at runtime, but...
+		else {
+			log(` creating a new payload for '${entry.name}'`);
+			this.createPayload(compiler, entry, modules);
 		}
 	});
 }
@@ -239,29 +266,32 @@ WpPluginPayload.prototype.storePayloadModules = function (compiler, compilation)
 
 
 // store payload
-WpPluginPayload.prototype.storePayload = function (compiler, entry, modules) {
+WpPluginPayload.prototype.createPayload = function (compiler, entry, modules) {
 	// if entry is disabled, store piped-assets as a payload
 	if (entry.disabled) {
-		log(`Entry '${entry.name}' is disabled per (options.entries[name='${entry.name}'].disabled)`);
+		log(` Entry '${entry.name}' assets will be copied to deploy`);
 		this.DM.payload.store.add({
 			name: entry.name,
 			type: 'copy',
+			dirty: true,
 			modules: entry.assets.get()
 		});	
 	}
 	// else prepare a payload for later update of watched-modules
 	else {
-		// prepare target: the full path to the entry
-		entry.target = compiler.options.entry[entry.name]
-
+		if (entry.type == 'inline') {
+			log(` Entry '${entry.name}' assets will be inlined`);
+		}	else {
+			log(` Entry '${entry.name}' assets will be fba-compiled`);
+		}
 		this.DM.payload.store.add({
 			name: entry.name,
 			// propagate the type
 			type: entry.type,
 			// force initial compile to happen
-			recompile: true,
+			dirty: true,
 			// store webpack-loaded modules for compiling
-			modules: modules
+			modules: modules || []
 		});
 	}
 }
