@@ -34,6 +34,7 @@ WpPluginPayload.prototype.apply = function (compiler) {
 	});
 
 
+
 	// check settings for updates (happens after each compile)
 	compiler.plugin('should-emit', (compilation) => {
 		// updates to settings may result in new payload-imports
@@ -56,14 +57,11 @@ WpPluginPayload.prototype.apply = function (compiler) {
 	compiler.plugin('emit', (compilation, callback) => {
 		log('\nPROCESSING COMPILER EMIT');
 
-			// updates store with requested payload-modules 
-			this.refreshPayloadStore(compiler, compilation);
+		// updates store with requested payload-modules 
+		this.refreshPayloadStore(compiler, compilation);
 
-			// updates to payload-modules: require recompile of payload
-			this.watchPayloadModules(compiler, compilation);
-
-			this.shouldEmit = true;
-
+		// updates to payload-modules: require recompile of payload
+		this.watchPayloadModules(compiler, compilation);
 
 		// return to webpack flow
 		this.prevTimestamps = compilation.fileTimestamps;
@@ -121,6 +119,9 @@ WpPluginPayload.prototype.watchPayloadModules = function (compiler, compilation)
 
 
 
+
+
+
 /* -- UTILITIES ----
  *
  */
@@ -137,27 +138,29 @@ WpPluginPayload.prototype.preparePayload = function (compiler) {
 			}
 	 */
 	if (!this.options) {
-		log(`Error: No (options) object defined.`);
-		return;
+		throw(`No (options) object defined.`);
 	}
 	/** options.watchPaths 
 			Give the plugin an external source to watch for updates
 	 */
 	if (!this.options.watchPaths || !this.options.watchPaths.length) {
-		log(`Warning: no options.watchPaths defined -- if assets are added/removed, webpack will not know to recompile!`);
+		throw(`No options.watchPaths defined -- if assets are added/removed, webpack will not know to recompile.`);
 	}
 
 	/** options.ENTRIES
-			name: 'image',
-			assets: {
-				source: this.deploy.ad.assets.images,
-				importPath: `./${this.deploy.env.paths.ad.images}`,
-				// inline-specific
-				requestPath: // this is the request path where the ad loads this asset - it should match exactly for `InlineSrc` to link the inlined-data properly
-			},
-			type: 'fbAi', // 'fbAf', 'inline'
-			// target - set by plugin: full path to entry
-			// disabled - set by plugin if settings are wrong or (options.output[entry.name].disabled) is requested
+				name: 'image',
+				assets: {
+					get: function () {
+						return DM.ad.get().settings.ref.assets.images;
+					},
+					set: function (result) {
+						DM.ad.get().settings.res.assets.images = result;
+					},
+					importPath: `./${DM.ad.get().paths.ad.images}`
+				},
+				type: 'fbAi', // 'fbAf', 'inline'
+				disabled: false // 
+				// target - set by plugin: full path to entry
 	 */
 	this.options.entries = this.options.entries || [];
 	this.DM.payload.store.reset();
@@ -166,15 +169,44 @@ WpPluginPayload.prototype.preparePayload = function (compiler) {
 	for (var i in this.options.entries) {
 		var entry = this.options.entries[i];
 
+
 		// validate entry-targets exist on compiler
 		if (!(entry.name in compiler.options.entry)) {
-			log(`Entry '${entry.name}' cannot watch/compile!! No entry specified on 'compiler.options.entry.${entry.name}'`);
-			// turn off compiling for this type/entry
-			entry.disabled = true;
+			throw(`Entry [name='${entry.name}'] cannot watch/compile - No matching Webpack entry found on 'compiler.options.entry.${entry.name}'.`);
 		}
 		// prepare target: the full path to the entry
-		entry.target = compiler.options.entry[entry.name]
+		entry.target = compiler.options.entry[entry.name];
 
+
+		// validate assets exist
+		if (!('assets' in entry)) {
+			throw(`Entry [name='${entry.name}'] does not specify any assets to payload.`);
+		}
+
+		// validate assets getter
+		if (!('get' in entry.assets)) {
+			throw(`Entry [name='${entry.name}'].assets does not specify a 'get()' method.`);
+		}
+
+		// validate assets setter
+		if (!('set' in entry.assets)) {
+			throw(`Entry [name='${entry.name}'].assets does not specify a 'set()' method.`);
+		}
+
+		// validate assets import-path
+		if (!('importPath' in entry.assets)) {
+			throw(`Entry [name='${entry.name}'].assets does not specify an 'importPath' property.`)
+		}
+
+		// validate entry type
+		if (!('type' in entry)) {
+			throw(`Entry [name='${entry.name}'] does not specify an fba-compiler 'type' property.`)
+		}
+		else if (entry.type != 'fbAi' && entry.type != 'fbAf' && entry.type != 'inline') {
+			throw(`Entry [name='${entry.name}'].type must be: 'fbAi', 'fbAf', or 'inline'`);
+		}
+
+		// create/store a payload model
 		this.createPayload(compiler, entry);
 	}
 }
@@ -216,6 +248,7 @@ WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestF
 WpPluginPayload.prototype.refreshPayloadStore = function (compiler, compilation) {
 	log('Refreshing modules in payload store:');
 
+	var hasPayloads = false;
 	this.options.entries.forEach((entry) => {
 		var modules = [];
 		var depLog = '';
@@ -227,6 +260,7 @@ WpPluginPayload.prototype.refreshPayloadStore = function (compiler, compilation)
 			});
 		}
 		else {
+			hasPayloads = true;
 			// store all modules data for this entry, which exist in the webpack dependency graph due to payload-imports
 			const dependencies = compilation._modules[entry.target].dependencies;
 			dependencies.forEach((dependency) => {
@@ -237,6 +271,9 @@ WpPluginPayload.prototype.refreshPayloadStore = function (compiler, compilation)
 					);
 				}
 			});
+
+			// remove the dependencies for this entry from ad.settings.res
+			entry.assets.set([]);
 		}
 
 		var existingPayload = this.DM.payload.store.get(entry.name);
@@ -261,6 +298,15 @@ WpPluginPayload.prototype.refreshPayloadStore = function (compiler, compilation)
 			this.createPayload(compiler, entry, modules);
 		}
 	});
+
+	// update settings with the compiled asset
+	if (hasPayloads) {
+		var binaryAssets = this.options.output.assets.get();
+		if (binaryAssets.indexOf(this.options.output.filename) == -1) {
+			binaryAssets.push(this.options.output.filename);
+		}
+		this.options.output.assets.set(binaryAssets);
+	}
 }
 
 
