@@ -1,7 +1,6 @@
 const _ = require('lodash')
 const path = require('path')
 
-const deployManager = require('wp-deploy-manager')
 const importer = require('./lib/importer.js')
 
 const debug = require('debug')
