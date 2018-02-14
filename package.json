@@ -1,27 +1,31 @@
 {
-  "name": "wp-plugin-payload",
-  "version": "1.0.0",
+  "name": "@ff0000-ad-tech/wp-plugin-payload",
+  "publishConfig": {
+    "access": "public"
+  },
+  "version": "1.0.3",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "pub": "np"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ff0000-ad-tech/wp-plugin-payload.git"
+    "url": "https://github.com/ff0000-ad-tech/wp-plugin-payload.git"
   },
   "author": "RED Interactive Agency",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "debug": "git://github.com/gmcdev/debug.git",
     "lodash": "^4.17.4",
     "varname": "^2.0.3",
-    "wp-deploy-manager": "git://github.com/ff0000-ad-tech/wp-deploy-manager.git"
+    "@ff0000-ad-tech/wp-deploy-manager": "latest"
   },
   "devDependencies": {
     "eslint": "^4.16.0",
     "eslint-config-prettier": "^2.9.0",
     "eslint-plugin-prettier": "^2.5.0",
+    "np": "^2.19.0",
     "prettier": "^1.10.2"
   }
 }
