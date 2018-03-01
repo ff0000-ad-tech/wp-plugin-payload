@@ -233,7 +233,7 @@ WpPluginPayload.prototype.refreshPayloadStore = function(compiler, compilation) 
 				}
 			})
 			if (moduleMatch) {
-				hasPayloads = true
+				hasPayloads = entry.type !== 'inline' ? true : false
 				// store all modules data for this entry, which exist in the webpack dependency graph due to payload-imports
 				const dependencies = compilation._modules[moduleMatch].dependencies
 				for (var i in dependencies) {
@@ -270,13 +270,11 @@ WpPluginPayload.prototype.refreshPayloadStore = function(compiler, compilation) 
 	})
 
 	// update settings with the compiled asset
-	if (hasPayloads) {
-		var binaryAssets = this.options.output.assets.get()
-		if (binaryAssets.indexOf(this.options.output.filename) == -1) {
-			binaryAssets.push(this.options.output.filename)
-		}
-		this.options.output.assets.set(binaryAssets)
+	var binaryAssets = this.options.output.assets.get()
+	if (hasPayloads && binaryAssets.indexOf(this.options.output.filename) == -1) {
+		binaryAssets.push(this.options.output.filename)
 	}
+	this.options.output.assets.set(binaryAssets)
 }
 
 // store payload
