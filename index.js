@@ -239,7 +239,7 @@ WpPluginPayload.prototype.refreshPayloadStore = function(compiler, compilation) 
 				for (var i in dependencies) {
 					if (dependencies[i].module) {
 						depLog += `  ${dependencies[i].module.rawRequest}\n`
-						modules.push(dependencies[i].module)
+						modules.push(dependencies[i].module.userRequest)
 					}
 				}
 				// remove the dependencies for this entry from ad.settings.res
@@ -268,13 +268,6 @@ WpPluginPayload.prototype.refreshPayloadStore = function(compiler, compilation) 
 			this.createPayload(compiler, entry, modules)
 		}
 	})
-
-	// update settings with the compiled asset
-	var binaryAssets = this.options.output.assets.get()
-	if (hasPayloads && binaryAssets.indexOf(this.options.output.filename) == -1) {
-		binaryAssets.push(this.options.output.filename)
-	}
-	this.options.output.assets.set(binaryAssets)
 }
 
 // store payload
