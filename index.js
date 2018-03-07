@@ -24,7 +24,7 @@ WpPluginPayload.prototype.apply = function(compiler) {
 		// init
 		this.preparePayload(compiler)
 
-		// update payload-imports
+    // update payload-imports
 		this.updatePayloadImports(compiler)
 	})
 
@@ -133,9 +133,7 @@ WpPluginPayload.prototype.updatePayloadImports = function(compiler) {
 	log('Updating payload-imports')
 	this.options.entries.forEach(entry => {
 		// update payload-imports
-		if (entry.type.match(/^fbA/i)) {
-			importer.updateImports(entry)
-		} else if (entry.type == 'inline') {
+		if (entry.type == 'inline') {
 			// update inline-imports
 			importer.updateInlineImports(entry)
 		}
