@@ -6,6 +6,8 @@ const importer = require('./lib/importer.js')
 const debug = require('debug')
 var log = debug('wp-plugin-payload')
 
+const pluginName = 'FAT Payload Plugin'
+
 function WpPluginPayload(DM, options) {
 	this.DM = DM
 	this.options = options
@@ -20,16 +22,16 @@ function WpPluginPayload(DM, options) {
 
 WpPluginPayload.prototype.apply = function(compiler) {
 	// on compiler entry (happens once)
-	compiler.plugin('entry-option', (compilation, callback) => {
+	compiler.hooks.entryOption.tap(pluginName, compilation => {
 		// init
 		this.preparePayload(compiler)
 
-    // update payload-imports
+		// update payload-imports
 		this.updatePayloadImports(compiler)
 	})
 
 	// check settings for updates (happens after each compile)
-	compiler.plugin('should-emit', compilation => {
+	compiler.hooks.shouldEmit.tap(pluginName, compilation => {
 		// updates to settings may result in new payload-imports
 		if (this.settingsHaveUpdate(compiler, compilation)) {
 			log('SETTINGS have changed - will recompile to get the latest payload-modules')
@@ -46,7 +48,7 @@ WpPluginPayload.prototype.apply = function(compiler) {
 	})
 
 	// on compiler emit (happens on dependency-updates)
-	compiler.plugin('emit', (compilation, callback) => {
+	compiler.hooks.emit.tapAsync(pluginName, (compilation, callback) => {
 		log('PROCESSING COMPILER EMIT')
 
 		// return to webpack flow
