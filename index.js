@@ -17,7 +17,7 @@ function WpPluginPayload(DM, options) {
 			}
 	*/
 	this.startTime = Date.now()
-	this.prevTimestamps = {}
+	this.prevTimestamps = new Map()
 }
 
 WpPluginPayload.prototype.apply = function(compiler) {
@@ -41,7 +41,7 @@ WpPluginPayload.prototype.apply = function(compiler) {
 
 			// update payload-imports
 			this.updatePayloadImports(compiler)
-			this.prevTimestamps = compilation.fileTimestamps
+			this.prevTimestamps = new Map(compilation.fileTimestamps)
 			return false
 		}
 		return true
@@ -52,7 +52,7 @@ WpPluginPayload.prototype.apply = function(compiler) {
 		log('PROCESSING COMPILER EMIT')
 
 		// return to webpack flow
-		this.prevTimestamps = compilation.fileTimestamps
+		this.prevTimestamps = new Map(compilation.fileTimestamps)
 		callback()
 	})
 }
@@ -61,7 +61,7 @@ WpPluginPayload.prototype.apply = function(compiler) {
  *
  */
 WpPluginPayload.prototype.settingsHaveUpdate = function(compiler, compilation) {
-	for (var watchFile in compilation.fileTimestamps) {
+	for (var watchFile of compilation.fileTimestamps.keys()) {
 		for (var i in this.options.watchPaths) {
 			if (this.hasUpdate(compilation, watchFile, this.options.watchPaths[i])) {
 				log(`Change detected: ${this.options.watchPaths[i]}`)
@@ -145,8 +145,8 @@ WpPluginPayload.prototype.updatePayloadImports = function(compiler) {
 // utility for determining if a watch file has been updated
 WpPluginPayload.prototype.hasUpdate = function(compilation, watchFile, requestFile) {
 	if (watchFile == requestFile) {
-		const prevTimestamp = this.prevTimestamps[watchFile] || this.startTime
-		const fileTimestamp = compilation.fileTimestamps[watchFile] || Infinity
+		const prevTimestamp = this.prevTimestamps.get(watchFile) || this.startTime
+		const fileTimestamp = compilation.fileTimestamps.get(watchFile) || Infinity
 		if (prevTimestamp < fileTimestamp) {
 			return true
 		}
