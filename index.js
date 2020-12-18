@@ -1,6 +1,3 @@
-const _ = require('lodash')
-const path = require('path')
-
 const importer = require('./lib/importer.js')
 
 const debug = require('@ff0000-ad-tech/debug')
@@ -20,7 +17,7 @@ function WpPluginPayload(DM, options) {
 	this.prevTimestamps = new Map()
 }
 
-WpPluginPayload.prototype.apply = function(compiler) {
+WpPluginPayload.prototype.apply = function (compiler) {
 	// on compiler entry (happens once)
 	compiler.hooks.entryOption.tap(pluginName, compilation => {
 		// init
@@ -60,7 +57,7 @@ WpPluginPayload.prototype.apply = function(compiler) {
 /* -- WATCH SETTINGS ----
  *
  */
-WpPluginPayload.prototype.settingsHaveUpdate = function(compiler, compilation) {
+WpPluginPayload.prototype.settingsHaveUpdate = function (compiler, compilation) {
 	for (var watchFile of compilation.fileTimestamps.keys()) {
 		for (var i in this.options.watchPaths) {
 			if (this.hasUpdate(compilation, watchFile, this.options.watchPaths[i])) {
@@ -76,7 +73,7 @@ WpPluginPayload.prototype.settingsHaveUpdate = function(compiler, compilation) {
  */
 
 // preparePayload
-WpPluginPayload.prototype.preparePayload = function(compiler) {
+WpPluginPayload.prototype.preparePayload = function (compiler) {
 	log('Preparing payload management...')
 	/** options
 			watchPaths: [], // paths on which to watch for asset declarations to change
@@ -131,7 +128,7 @@ WpPluginPayload.prototype.preparePayload = function(compiler) {
 }
 
 // update imports
-WpPluginPayload.prototype.updatePayloadImports = function(compiler) {
+WpPluginPayload.prototype.updatePayloadImports = function (compiler) {
 	log('Updating payload-imports')
 	this.options.entries.forEach(entry => {
 		// update payload-imports
@@ -143,7 +140,7 @@ WpPluginPayload.prototype.updatePayloadImports = function(compiler) {
 }
 
 // utility for determining if a watch file has been updated
-WpPluginPayload.prototype.hasUpdate = function(compilation, watchFile, requestFile) {
+WpPluginPayload.prototype.hasUpdate = function (compilation, watchFile, requestFile) {
 	if (watchFile == requestFile) {
 		const prevTimestamp = this.prevTimestamps.get(watchFile) || this.startTime
 		const fileTimestamp = compilation.fileTimestamps.get(watchFile) || Infinity
@@ -154,33 +151,29 @@ WpPluginPayload.prototype.hasUpdate = function(compilation, watchFile, requestFi
 }
 
 // utility to rebuild payload dependencies list on store-object
-WpPluginPayload.prototype.refreshPayloadStore = function(compiler, compilation) {
-	log('Refreshing modules in payload store:')
-
-	var hasPayloads = false
-	this.options.entries.forEach(entry => {
-		var modules = {}
-		var depLog = ''
-		const moduleMatch = Object.keys(compilation._modules).filter(name => {
-			if (name.indexOf(entry.target) > -1) {
-				return name
-			}
-		})
-		if (moduleMatch) {
-			hasPayloads = entry.type !== 'inline' ? true : false
-			// store all modules data for this entry, which exist in the webpack dependency graph due to payload-imports
-			const dependencies = compilation._modules[moduleMatch].dependencies
-			for (var i in dependencies) {
-				if (dependencies[i].module) {
-					depLog += `  ${dependencies[i].module.rawRequest}`
-					this.DM.payload.addBinaryAsset({
-						chunkType: 'fbAi',
-						path: dependencies[i].module.userRequest
-					})
-				}
-			}
-		}
-	})
-}
+// WpPluginPayload.prototype.refreshPayloadStore = function(compiler, compilation) {
+// 	log('Refreshing modules in payload store:')
+// 	this.options.entries.forEach(entry => {
+// 		var depLog = ''
+// 		const moduleMatch = Object.keys(compilation._modules).filter(name => {
+// 			if (name.indexOf(entry.target) > -1) {
+// 				return name
+// 			}
+// 		})
+// 		if (moduleMatch) {
+// 			// store all modules data for this entry, which exist in the webpack dependency graph due to payload-imports
+// 			const dependencies = compilation._modules[moduleMatch].dependencies
+// 			for (var i in dependencies) {
+// 				if (dependencies[i].module) {
+// 					depLog += `  ${dependencies[i].module.rawRequest}`
+// 					this.DM.payload.addBinaryAsset({
+// 						chunkType: 'fbAi',
+// 						path: dependencies[i].module.userRequest
+// 					})
+// 				}
+// 			}
+// 		}
+// 	})
+// }
 
 module.exports = WpPluginPayload
