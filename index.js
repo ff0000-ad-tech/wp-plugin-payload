@@ -19,7 +19,7 @@ function WpPluginPayload(DM, options) {
 
 WpPluginPayload.prototype.apply = function (compiler) {
 	// on compiler entry (happens once)
-	compiler.hooks.entryOption.tap(pluginName, compilation => {
+	compiler.hooks.entryOption.tap(pluginName, (compilation) => {
 		// init
 		this.preparePayload(compiler)
 
@@ -28,13 +28,13 @@ WpPluginPayload.prototype.apply = function (compiler) {
 	})
 
 	// check settings for updates (happens after each compile)
-	compiler.hooks.shouldEmit.tap(pluginName, compilation => {
+	compiler.hooks.shouldEmit.tap(pluginName, (compilation) => {
 		// updates to settings may result in new payload-imports
 		if (this.settingsHaveUpdate(compiler, compilation)) {
 			log('SETTINGS have changed - will recompile to get the latest payload-modules')
 
 			// refresh settings
-			this.DM.ad.refresh()
+			this.DM.adManager.applyIndexSettings(this.DM.config.get())
 
 			// update payload-imports
 			this.updatePayloadImports(compiler)
@@ -109,8 +109,6 @@ WpPluginPayload.prototype.preparePayload = function (compiler) {
 				// target - set by plugin: full path to entry
 	 */
 	this.options.entries = this.options.entries || []
-	// this.DM.payload.store.reset()
-
 	// map entry-target to each request
 	for (var i in this.options.entries) {
 		var entry = this.options.entries[i]
@@ -130,7 +128,7 @@ WpPluginPayload.prototype.preparePayload = function (compiler) {
 // update imports
 WpPluginPayload.prototype.updatePayloadImports = function (compiler) {
 	log('Updating payload-imports')
-	this.options.entries.forEach(entry => {
+	this.options.entries.forEach((entry) => {
 		// update payload-imports
 		if (entry.type == 'inline') {
 			// update inline-imports
