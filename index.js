@@ -5,7 +5,8 @@ var log = debug('wp-plugin-payload')
 
 const pluginName = 'FAT Payload Plugin'
 
-function WpPluginPayload(DM, options) {
+function WpPluginPayload(scope, DM, options) {
+	this.scope = scope
 	this.DM = DM
 	this.options = options
 	/* TODO: Document options
@@ -34,7 +35,7 @@ WpPluginPayload.prototype.apply = function (compiler) {
 			log('SETTINGS have changed - will recompile to get the latest payload-modules')
 
 			// refresh settings
-			this.DM.adManager.applyIndexSettings(this.DM.config.get())
+			this.DM.adManager.applyIndexSettings(this.scope, this.DM.deploy.get())
 
 			// update payload-imports
 			this.updatePayloadImports(compiler)
