@@ -23,7 +23,6 @@ WpPluginPayload.prototype.apply = function (compiler) {
 	compiler.hooks.entryOption.tap(pluginName, (compilation) => {
 		// init
 		this.preparePayload(compiler)
-
 		// update payload-imports
 		this.updatePayloadImports(compiler)
 	})
@@ -33,10 +32,8 @@ WpPluginPayload.prototype.apply = function (compiler) {
 		// updates to settings may result in new payload-imports
 		if (this.settingsHaveUpdate(compiler, compilation)) {
 			log('SETTINGS have changed - will recompile to get the latest payload-modules')
-
 			// refresh settings
 			this.DM.adManager.applyIndexSettings(this.scope, this.DM.deploy.get())
-
 			// update payload-imports
 			this.updatePayloadImports(compiler)
 			this.prevTimestamps = new Map(compilation.fileTimestamps)
@@ -48,7 +45,6 @@ WpPluginPayload.prototype.apply = function (compiler) {
 	// on compiler emit (happens on dependency-updates)
 	compiler.hooks.emit.tapAsync(pluginName, (compilation, callback) => {
 		log('PROCESSING COMPILER EMIT')
-
 		// return to webpack flow
 		this.prevTimestamps = new Map(compilation.fileTimestamps)
 		callback()
@@ -93,6 +89,7 @@ WpPluginPayload.prototype.preparePayload = function (compiler) {
 	if (!this.options.watchPaths || !this.options.watchPaths.length) {
 		throw `No options.watchPaths defined -- if assets are added/removed, webpack will not know to recompile.`
 	}
+	log(this.options)
 
 	/** options.ENTRIES
 				name: 'image',
